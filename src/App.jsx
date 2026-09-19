@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SyncProvider } from './context/SyncContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageSpinner } from './components/ui/Spinner';
+import { LanguageProvider } from './context/LanguageContext';
 
 // ─── Lazy page imports ────────────────────────────────────────────────────────
 const LoginPage          = lazy(() => import('./pages/auth/LoginPage'));

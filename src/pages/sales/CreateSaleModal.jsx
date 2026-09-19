@@ -16,7 +16,7 @@ import { formatKg, formatMoney, stateColor, formatGrade } from '../../utils/form
 import { useLanguage } from '../../context/LanguageContext';
 
 export function CreateSaleModal({ onClose, onCreated }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
 

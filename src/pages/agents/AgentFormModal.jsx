@@ -9,7 +9,7 @@ import { Alert } from '../../components/ui/Alert';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AgentFormModal({ agent, onClose, onSaved }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const isEdit = Boolean(agent);
   const [error, setError] = useState('');
 

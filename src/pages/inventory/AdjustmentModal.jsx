@@ -12,7 +12,7 @@ import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AdjustmentModal({ onClose, onSuccess }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const [error, setError] = useState('');
 
   const { data: batchesActive  } = useQuery({ queryKey: ['batches-active'],  queryFn: () => inventoryApi.batches({ status: 'ACTIVE',            limit: 200, page: 1 }) });

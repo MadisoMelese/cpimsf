@@ -14,7 +14,7 @@ import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function TransferModal({ onClose, onSuccess }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const [error, setError] = useState('');
 
   const { data: locations }    = useQuery({ queryKey: ['locations'],    queryFn: locationsApi.list });

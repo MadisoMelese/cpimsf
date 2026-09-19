@@ -14,7 +14,7 @@ import { AgentFormModal } from './AgentFormModal';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, onUpdated }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const queryClient   = useQueryClient();
   const [editOpen,    setEditOpen]    = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);

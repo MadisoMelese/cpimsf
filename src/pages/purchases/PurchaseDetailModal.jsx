@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function PurchaseDetailModal({ id, onClose }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const queryClient      = useQueryClient();
   const { isBossOrAdmin } = useAuth();
   const [error, setError] = useState('');

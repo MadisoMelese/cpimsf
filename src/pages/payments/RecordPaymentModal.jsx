@@ -22,7 +22,7 @@ const METHOD_LABELS = {
 };
 
 export function RecordPaymentModal({ type, transactionId, transactionNumber, remainingAmount, onClose, onSuccess }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const isAP = type === 'purchase';  // AP = paying supplier, AR = receiving from customer
   const [error, setError] = useState('');
 

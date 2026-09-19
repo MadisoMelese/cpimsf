@@ -24,7 +24,7 @@ const METHODS = ['CASH','BANK_TRANSFER','MOBILE_MONEY','CHEQUE','OTHER'];
 const METHOD_LABELS = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', MOBILE_MONEY:'Mobile Money', CHEQUE:'Cheque', OTHER:'Other' };
 
 export function AdvanceDetailModal({ id, onClose, onUpdated }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const { isBossOrAdmin }  = useAuth();
   const [error, setError]  = useState('');
   const [step, setStep]    = useState('view'); // view | add-expense | record-return | void

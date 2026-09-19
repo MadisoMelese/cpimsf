@@ -11,7 +11,7 @@ import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function SaleDetailModal({ id, onClose }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [error, setError]           = useState('');
   const [confirming, setConfirming] = useState(false);

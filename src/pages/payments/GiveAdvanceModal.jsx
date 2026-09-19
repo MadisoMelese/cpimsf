@@ -15,7 +15,7 @@ const METHODS = ['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHEQUE', 'OTHER'];
 const METHOD_LABELS = { CASH: 'Cash', BANK_TRANSFER: 'Bank Transfer', MOBILE_MONEY: 'Mobile Money (Telebirr)', CHEQUE: 'Cheque', OTHER: 'Other' };
 
 export function GiveAdvanceModal({ onClose, onSuccess }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const [error, setError] = useState('');
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => agentsApi.list({ isSupplier: true }) });
 

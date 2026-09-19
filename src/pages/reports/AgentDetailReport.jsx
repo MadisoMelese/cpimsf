@@ -7,14 +7,14 @@ import { Button } from '../../components/ui/Button';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { Table, Thead, Th, Tbody, Tr, Td, TableEmpty } from '../../components/ui/Table';
 import { formatKg, formatMoney, formatDate, formatGrade, stateColor } from '../../utils/format';
-import {
 import { useLanguage } from '../../context/LanguageContext';
+import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line,
 } from 'recharts';
 
 export default function AgentDetailReport({ agentId, startDate, endDate, onBack }) {
-  const { t } = useLanguage(); {
+  const { t } = useLanguage();
   const { data, isLoading } = useQuery({
     queryKey: ['report-agent-detail', agentId, startDate, endDate],
     queryFn:  () => reportsApi.agent(agentId, { startDate, endDate }),
