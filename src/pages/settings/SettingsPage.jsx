@@ -145,7 +145,7 @@ function LocationFormModal({ location, onClose, onSuccess }) {
 
 // ─── Coffee Types ─────────────────────────────────────────────────────────────
 
-const STATE_COLORS = { WET: 'info', DRY: 'warning', HULLED: 'default', SORTED: 'primary', GRADED: 'success' };
+const STATE_COLORS = { WET: 'info', DRY: 'warning', PARCHMENT: 'primary', HULLED: 'default', GREEN: 'success', SORTED: 'primary', GRADED: 'success' };
 
 function CoffeeTypesTab() {
   const queryClient           = useQueryClient();
@@ -245,7 +245,7 @@ function CoffeeTypeFormModal({ coffeeType, onClose, onSuccess }) {
         <Input label="Name" required error={errors.name?.message} {...register('name', { required: 'Required' })} />
         <div className="grid grid-cols-2 gap-4">
           <Select label="State" required {...register('state', { required: 'Required' })}>
-            {['WET','DRY','HULLED','SORTED','GRADED'].map(s => <option key={s} value={s}>{s}</option>)}
+            {['WET','DRY','PARCHMENT','HULLED','GREEN','SORTED','GRADED'].map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
           <Input label={t('settings.grade')} placeholder="1, 2, 3, AA, AB…" {...register('grade')} />
         </div>

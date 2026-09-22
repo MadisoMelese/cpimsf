@@ -12,12 +12,12 @@ import { Badge } from '../../components/ui/Badge';
 import { newOperationId } from '../../utils/operationId';
 import { stateColor } from '../../utils/format';
 import { useState } from 'react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 
 export function CreatePurchaseModal({ onClose }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
-  const { t } = useLanguage();
+  const { isBossOrAdmin } = useAuth();
 
   const { data: agents }      = useQuery({ queryKey: ['agents'],       queryFn: () => agentsApi.list({ isSupplier: true }) });
   const { data: locations }   = useQuery({ queryKey: ['locations'],    queryFn: locationsApi.list });
@@ -26,8 +26,7 @@ export function CreatePurchaseModal({ onClose }) {
   const { register, control, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       purchaseDate: new Date().toISOString().split('T')[0],
-      creditTerms:  'CASH',
-      currency:     'ETB',   // ← Ethiopian Birr
+      currency:     'ETB',
       items: [{ coffeeTypeId: '', quantityKg: '', unitPriceKg: '', moistureContent: '' }],
     },
   });
@@ -35,9 +34,23 @@ export function CreatePurchaseModal({ onClose }) {
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
 
-  // look up a coffee type by id for badge display
   const ctMap = {};
   (coffeeTypes?.data || []).forEach(c => { ctMap[c.id] = c; });
+
+  // Storekeeper only sees WET/DRY, and only UNGRADED types (no grade assigned yet)
+  // Grade is assigned by Admin during reconciliation
+  const visibleCoffeeTypes = (coffeeTypes?.data || []).filter(c => {
+    if (isBossOrAdmin) return true;
+    // Storekeeper: only WET or DRY states, and no grade (or grade will be set later)
+    return ['WET', 'DRY'].includes(c.state);
+  });
+
+  // For storekeeper display — show state-based label without grade
+  const displayName = (c) => {
+    if (isBossOrAdmin) return c.name;
+    // Strip grade info from name for Storekeeper — they just pick WET or DRY
+    return `${c.state === 'WET' ? 'Wet Cherry' : 'Dry Cherry'} (${c.code})`;
+  };
 
   const mutation = useMutation({
     mutationFn: (data) => purchasesApi.create({ ...data, operationId: newOperationId() }),
@@ -52,6 +65,8 @@ export function CreatePurchaseModal({ onClose }) {
     setError('');
     mutation.mutate({
       ...data,
+      // Storekeeper: creditTerms always CASH (stripped server-side too)
+      creditTerms: isBossOrAdmin ? (data.creditTerms || 'CASH') : 'CASH',
       items: data.items.map((i) => ({
         coffeeTypeId:    i.coffeeTypeId,
         quantityKg:      parseFloat(i.quantityKg),
@@ -62,7 +77,7 @@ export function CreatePurchaseModal({ onClose }) {
     });
   };
 
-  // computed totals
+  // Live totals
   const totals = (watchedItems || []).reduce((acc, item) => {
     const kg  = parseFloat(item.quantityKg)  || 0;
     const prc = parseFloat(item.unitPriceKg) || 0;
@@ -73,19 +88,20 @@ export function CreatePurchaseModal({ onClose }) {
     <Modal
       open
       onClose={onClose}
-      title={t('purchases.newPurchaseReceipt')}
+      title="Receive Coffee"
       size="xl"
       footer={
         <div className="flex items-center justify-between w-full">
-          {/* Live totals */}
           <div className="text-sm text-slate-500 flex gap-4">
             <span>Total: <strong className="text-slate-900">{totals.kg.toFixed(3)} KG</strong></span>
-            <span>Amount: <strong className="text-success-700">ETB {totals.money.toLocaleString('en-ET', { minimumFractionDigits: 2 })}</strong></span>
+            <span>Amount: <strong className="text-success-700">
+              ETB {totals.money.toLocaleString('en-ET', { minimumFractionDigits: 2 })}
+            </strong></span>
           </div>
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
             <Button type="submit" form="create-purchase-form" loading={isSubmitting || mutation.isPending}>
-              Save Purchase
+              Save Receiving Record
             </Button>
           </div>
         </div>
@@ -95,63 +111,62 @@ export function CreatePurchaseModal({ onClose }) {
 
       <form id="create-purchase-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
 
-        {/* Header fields */}
+        {/* Header — always visible */}
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Agent / Supplier" required
-            error={errors.agentId?.message}
-            {...register('agentId', { required: 'Agent is required' })}
-          >
+          <Select label="Agent / Supplier" required error={errors.agentId?.message}
+            {...register('agentId', { required: 'Agent is required' })}>
             <option value="">Select agent…</option>
             {(agents?.data || []).map((a) => (
-              <option key={a.id} value={a.id}>{a.name} {a.phone ? `(${a.phone})` : ''}</option>
+              <option key={a.id} value={a.id}>{a.name}{a.phone ? ` (${a.phone})` : ''}</option>
             ))}
           </Select>
 
-          <Select
-            label="Reception Location" required
-            error={errors.locationId?.message}
-            {...register('locationId', { required: 'Location is required' })}
-          >
+          <Select label="Reception Location" required error={errors.locationId?.message}
+            {...register('locationId', { required: 'Location is required' })}>
             <option value="">Select location…</option>
             {(locations?.data || []).map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </Select>
 
-          <Input
-            label="Purchase Date" type="date" required
-            error={errors.purchaseDate?.message}
-            {...register('purchaseDate', { required: 'Date is required' })}
-          />
+          <Input label="Receiving Date" type="date" required error={errors.purchaseDate?.message}
+            {...register('purchaseDate', { required: 'Date is required' })} />
 
-          <Select label="Payment Terms" {...register('creditTerms')}>
-            <option value="CASH">Cash (immediate)</option>
-            <option value="NET_7">Net 7 days</option>
-            <option value="NET_14">Net 14 days</option>
-            <option value="NET_30">Net 30 days</option>
-            <option value="NET_60">Net 60 days</option>
-            <option value="CUSTOM">Custom</option>
-          </Select>
+          {/* Payment Terms — Admin/Boss only. Grade & payment set later during reconciliation for Storekeeper */}
+          {isBossOrAdmin ? (
+            <Select label="Payment Terms" {...register('creditTerms')}>
+              <option value="CASH">Cash (immediate)</option>
+              <option value="NET_7">Net 7 days</option>
+              <option value="NET_14">Net 14 days</option>
+              <option value="NET_30">Net 30 days</option>
+              <option value="NET_60">Net 60 days</option>
+              <option value="CUSTOM">Custom</option>
+            </Select>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-slate-500">Payment Terms</p>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm text-slate-500">
+                Cash — set by Admin during reconciliation
+              </div>
+            </div>
+          )}
         </div>
 
-        <Input
-          label="Notes (optional)"
-          placeholder="Storekeeper observations, delivery conditions…"
-          {...register('notes')}
-        />
+        <Input label="Notes (optional)" placeholder="Delivery conditions, observations…" {...register('notes')} />
 
         {/* Coffee items */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm font-semibold text-slate-700">Coffee Items</p>
-              <p className="text-xs text-slate-500 mt-0.5">Record each coffee type, grade, quantity and price in ETB</p>
+              <p className="text-sm font-semibold text-slate-700">Coffee Received</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isBossOrAdmin
+                  ? 'Record each coffee type, quantity and price. Grade assigned here from coffee type.'
+                  : 'Record what was delivered. Grade will be verified by Admin during reconciliation.'}
+              </p>
             </div>
-            <Button
-              variant="ghost" size="xs" type="button"
-              onClick={() => append({ coffeeTypeId: '', quantityKg: '', unitPriceKg: '', moistureContent: '' })}
-            >
+            <Button variant="ghost" size="xs" type="button"
+              onClick={() => append({ coffeeTypeId: '', quantityKg: '', unitPriceKg: '', moistureContent: '' })}>
               <Plus size={14} /> Add Row
             </Button>
           </div>
@@ -161,79 +176,54 @@ export function CreatePurchaseModal({ onClose }) {
               const selectedCt = ctMap[watchedItems?.[i]?.coffeeTypeId];
               return (
                 <div key={field.id} className="rounded-xl border border-slate-200 p-3 space-y-3">
-                  {/* Row label */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-500">Item {i + 1}</span>
                     {selectedCt && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
                         <Badge variant={stateColor(selectedCt.state)}>{selectedCt.state}</Badge>
-                        <Badge variant="default">Grade {selectedCt.grade || '—'}</Badge>
+                        {selectedCt.grade && (
+                          <Badge variant="default">Grade {selectedCt.grade}</Badge>
+                        )}
                       </div>
                     )}
                     {fields.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => remove(i)}
-                        className="p-1 text-slate-400 hover:text-danger-600 transition-colors ml-auto"
-                        aria-label="Remove item"
-                      >
+                      <button type="button" onClick={() => remove(i)}
+                        className="p-1 text-slate-400 hover:text-danger-600 transition-colors ml-auto">
                         <Trash2 size={15} />
                       </button>
                     )}
                   </div>
 
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {/* Coffee type */}
                     <div className="col-span-2 lg:col-span-1">
-                      <Select
-                        label="Coffee Type"
-                        error={errors.items?.[i]?.coffeeTypeId?.message}
-                        {...register(`items.${i}.coffeeTypeId`, { required: 'Required' })}
-                      >
+                      <Select label="Coffee Type" error={errors.items?.[i]?.coffeeTypeId?.message}
+                        {...register(`items.${i}.coffeeTypeId`, { required: 'Required' })}>
                         <option value="">Select…</option>
-                        {(coffeeTypes?.data || []).map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
+                        {visibleCoffeeTypes.map((c) => (
+                          <option key={c.id} value={c.id}>{displayName(c)}</option>
                         ))}
                       </Select>
                     </div>
 
-                    {/* Quantity */}
-                    <Input
-                      label="Quantity (KG)"
-                      type="number" step="0.001" min="0.001"
-                      placeholder="0.000"
+                    <Input label="Quantity (KG)" type="number" step="0.001" min="0.001" placeholder="0.000"
                       error={errors.items?.[i]?.quantityKg?.message}
                       {...register(`items.${i}.quantityKg`, {
                         required: 'Required',
                         min: { value: 0.001, message: 'Must be > 0' },
-                      })}
-                    />
+                      })} />
 
-                    {/* Unit price in ETB */}
-                    <Input
-                      label="Price / KG (ETB)"
-                      type="number" step="0.01" min="0"
-                      placeholder="0.00"
+                    <Input label="Price / KG (ETB)" type="number" step="0.01" min="0" placeholder="0.00"
                       error={errors.items?.[i]?.unitPriceKg?.message}
                       {...register(`items.${i}.unitPriceKg`, {
                         required: 'Required',
                         min: { value: 0, message: 'Must be ≥ 0' },
-                      })}
-                    />
+                      })} />
 
-                    {/* Moisture — only relevant for WET */}
-                    <Input
-                      label="Moisture % (wet only)"
-                      type="number" step="0.1" min="0" max="100"
-                      placeholder="e.g. 65"
-                      hint="Leave blank for dry coffee"
-                      {...register(`items.${i}.moistureContent`)}
-                    />
+                    <Input label="Moisture % (wet only)" type="number" step="0.1" min="0" max="100"
+                      placeholder="e.g. 65" hint="Leave blank for dry coffee"
+                      {...register(`items.${i}.moistureContent`)} />
                   </div>
 
-                  {/* Line total */}
                   {watchedItems?.[i]?.quantityKg && watchedItems?.[i]?.unitPriceKg && (
                     <div className="text-right text-xs text-slate-500">
                       Line total:{' '}

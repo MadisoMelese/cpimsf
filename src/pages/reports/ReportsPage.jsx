@@ -264,6 +264,7 @@ function PurchasesReport({ startDate, endDate }) {
 // ─── Agents Overview ──────────────────────────────────────────────────────────
 
 function AgentsReport({ startDate, endDate, onSelectAgent }) {
+  const {t} = useLanguage()
   const { data, isLoading } = useQuery({
     queryKey: ['report-agents', startDate, endDate],
     queryFn:  () => reportsApi.agents({ startDate, endDate }),

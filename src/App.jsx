@@ -68,9 +68,12 @@ function AppRoutes() {
           <Route index                  element={<DashboardPage />} />
           <Route path="purchases"       element={<PurchasesPage />} />
           <Route path="inventory"       element={<InventoryPage />} />
-          <Route path="processing"      element={<ProcessingPage />} />
-          <Route path="sales"           element={<SalesPage />} />
-          <Route path="payments"        element={<PaymentsPage />} />
+          {/* Processing — BOSS/ADMIN only */}
+          <Route path="processing"      element={<RequireRole roles={['BOSS', 'ADMIN']}><ProcessingPage /></RequireRole>} />
+          {/* Sales — BOSS/ADMIN only */}
+          <Route path="sales"           element={<RequireRole roles={['BOSS', 'ADMIN']}><SalesPage /></RequireRole>} />
+          {/* Payments / Cash Advances — BOSS/ADMIN only */}
+          <Route path="payments"        element={<RequireRole roles={['BOSS', 'ADMIN']}><PaymentsPage /></RequireRole>} />
           <Route path="reconciliation"  element={<ReconciliationPage />} />
           <Route path="reports"         element={<ReportsPage />} />
 

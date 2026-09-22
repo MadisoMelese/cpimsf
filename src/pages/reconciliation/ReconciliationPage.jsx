@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Lock, ClipboardCheck, SlidersHorizontal } from 'lucide-react';
+import { Plus, Lock, ClipboardCheck, SlidersHorizontal, CreditCard } from 'lucide-react';
 import { reconciliationApi } from '../../api/reconciliation';
+import { purchasesApi } from '../../api/purchases';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td, TableEmpty } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
@@ -11,7 +12,7 @@ import { Alert } from '../../components/ui/Alert';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { PageSpinner } from '../../components/ui/Spinner';
-import { formatDate, formatKg, formatDateTime } from '../../utils/format';
+import { formatDate, formatKg, formatMoney } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import { locationsApi } from '../../api/reference';
@@ -91,6 +92,7 @@ export default function ReconciliationPage() {
 
 function CreateSessionModal({ onClose }) {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: locationsApi.list });
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -133,7 +135,8 @@ function CreateSessionModal({ onClose }) {
 function SessionDetailModal({ id, onClose }) {
   const queryClient       = useQueryClient();
   const { isBossOrAdmin } = useAuth();
-  const [step,        setStep]        = useState('view');
+  const { t }             = useLanguage();
+  const [step,        setStep]        = useState('view'); // view | verify | adjust | grade-payment | close
   const [error,       setError]       = useState('');
   const [closeNotes,  setCloseNotes]  = useState('');
 
@@ -165,6 +168,7 @@ function SessionDetailModal({ id, onClose }) {
             {s.status !== 'CLOSED' && step === 'view' && (
               <>
                 <Button size="sm" onClick={() => setStep('verify')}><ClipboardCheck size={14} /> Record Counts</Button>
+                {isBossOrAdmin && <Button size="sm" variant="secondary" onClick={() => setStep('grade-payment')}><CreditCard size={14} /> Grade &amp; Payment</Button>}
                 {isBossOrAdmin && <Button size="sm" variant="secondary" onClick={() => setStep('adjust')}><SlidersHorizontal size={14} /> Add Adjustment</Button>}
                 {isBossOrAdmin && <Button size="sm" variant="danger" onClick={() => setStep('close')}><Lock size={14} /> Close & Lock</Button>}
               </>
@@ -234,6 +238,11 @@ function SessionDetailModal({ id, onClose }) {
         </div>
       )}
 
+      {/* ── Grade & Payment (Admin only) ── */}
+      {step === 'grade-payment' && (
+        <GradePaymentForm session={s} onDone={() => { invalidate(); setStep('view'); }} onError={setError} />
+      )}
+
       {/* ── Verify ── */}
       {step === 'verify' && (
         <VerifyForm sessionId={id} onDone={() => { invalidate(); setStep('view'); }} onError={setError} />
@@ -273,6 +282,7 @@ function SessionDetailModal({ id, onClose }) {
 // ─── Verify sub-form ──────────────────────────────────────────────────────────
 
 function VerifyForm({ sessionId, onDone, onError }) {
+  const { t } = useLanguage();
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { verifications: [{ physicalKg: '', notes: '' }] },
   });
@@ -307,6 +317,7 @@ function VerifyForm({ sessionId, onDone, onError }) {
 // ─── Adjust sub-form ──────────────────────────────────────────────────────────
 
 function AdjustForm({ sessionId, onDone, onError }) {
+  const { t } = useLanguage();
   const { data: batchesA } = useQuery({ queryKey: ['batches-active'],  queryFn: () => import('../../api/inventory').then(m => m.inventoryApi.batches({ status: 'ACTIVE', limit: 200, page: 1 })) });
   const { data: batchesP } = useQuery({ queryKey: ['batches-partial'], queryFn: () => import('../../api/inventory').then(m => m.inventoryApi.batches({ status: 'PARTIALLY_CONSUMED', limit: 200, page: 1 })) });
   const allBatches = [...(batchesA?.data || []), ...(batchesP?.data || [])];
@@ -347,5 +358,162 @@ function AdjustForm({ sessionId, onDone, onError }) {
         <Button type="submit" loading={mutation.isPending}>{t('reconciliation.applyAdj')}</Button>
       </div>
     </form>
+  );
+}
+
+// ─── Grade & Payment Form (Admin only, inside reconciliation session) ─────────
+// Lists all APPROVED purchases in the session period.
+// Admin can set: grade (coffee type per item), payment type, due date.
+
+function GradePaymentForm({ session, onDone, onError }) {
+  const queryClient = useQueryClient();
+
+  // Fetch approved purchases within this session's period
+  const { data: purchasesData, isLoading } = useQuery({
+    queryKey: ['purchases-for-recon', session.id],
+    queryFn:  () => purchasesApi.list({
+      status:    'APPROVED',
+      startDate: session.periodStart?.split('T')[0],
+      endDate:   session.periodEnd?.split('T')[0],
+      limit:     200, page: 1,
+    }),
+  });
+
+  const purchases = purchasesData?.data || [];
+
+  if (isLoading) return <PageSpinner />;
+
+  if (purchases.length === 0) {
+    return (
+      <Alert variant="info" title="No approved purchases in this period">
+        No approved purchases found between {formatDate(session.periodStart)} and {formatDate(session.periodEnd)}.
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        Set payment terms and review grades for each approved purchase in this period.
+        Grades are determined by the coffee type selected when receiving.
+      </p>
+
+      <div className="space-y-3">
+        {purchases.map(p => (
+          <PurchaseGradePaymentRow
+            key={p.id}
+            purchase={p}
+            onUpdated={() => queryClient.invalidateQueries({ queryKey: ['purchases-for-recon', session.id] })}
+            onError={onError}
+          />
+        ))}
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <Button onClick={onDone}>Done</Button>
+      </div>
+    </div>
+  );
+}
+
+function PurchaseGradePaymentRow({ purchase, onUpdated, onError }) {
+  const [editing, setEditing] = useState(false);
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
+    defaultValues: {
+      creditTerms:   purchase.creditTerms   || 'CASH',
+      creditDueDate: purchase.creditDueDate ? purchase.creditDueDate.split('T')[0] : '',
+      notes:         purchase.notes || '',
+    },
+  });
+
+  const creditTerms = watch('creditTerms');
+
+  const totalKg    = purchase.items?.reduce((a, i) => a + parseFloat(i.quantityKg || 0), 0) || 0;
+  const totalMoney = purchase.items?.reduce((a, i) => a + parseFloat(i.totalPrice  || 0), 0) || 0;
+
+  const mutation = useMutation({
+    mutationFn: (data) => purchasesApi.setGradePayment(purchase.id, {
+      creditTerms:   data.creditTerms,
+      creditDueDate: data.creditDueDate || undefined,
+      notes:         data.notes || undefined,
+    }),
+    onSuccess: () => { setEditing(false); onUpdated(); },
+    onError: (err) => onError(err?.response?.data?.error?.message || 'Update failed'),
+  });
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+      {/* Purchase header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-primary-700">{purchase.purchaseNumber}</span>
+            <Badge status={purchase.status} />
+            <Badge variant={purchase.creditTerms === 'CASH' ? 'success' : purchase.creditDueDate && new Date(purchase.creditDueDate) < new Date() ? 'danger' : 'warning'}>
+              {purchase.creditTerms === 'CASH' ? 'CASH' : purchase.creditTerms}
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {purchase.agent?.name} · {formatDate(purchase.purchaseDate)} · {purchase.location?.name}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="font-semibold tabular-nums">{totalKg.toFixed(3)} KG</p>
+          <p className="text-sm text-success-700 tabular-nums">ETB {totalMoney.toLocaleString('en-ET', { minimumFractionDigits: 2 })}</p>
+        </div>
+      </div>
+
+      {/* Coffee items with grades */}
+      <div className="flex flex-wrap gap-2">
+        {purchase.items?.map((item, i) => (
+          <div key={i} className="flex items-center gap-1.5 rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs">
+            <span className="font-medium">{item.coffeeType?.name}</span>
+            {item.coffeeType?.grade && <Badge variant="default" className="text-[10px]">Grade {item.coffeeType.grade}</Badge>}
+            <span className="text-slate-400">{parseFloat(item.quantityKg).toFixed(3)} KG</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Payment terms */}
+      {!editing ? (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            <span className="text-slate-500">Payment: </span>
+            <span className="font-medium">{purchase.creditTerms}</span>
+            {purchase.creditDueDate && (
+              <span className={`ml-2 ${new Date(purchase.creditDueDate) < new Date() ? 'text-danger-600 font-semibold' : 'text-slate-500'}`}>
+                · Due {formatDate(purchase.creditDueDate)}
+              </span>
+            )}
+          </div>
+          <Button size="xs" variant="secondary" onClick={() => setEditing(true)}>
+            <CreditCard size={12} /> Set Payment
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-3 pt-1 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Payment Type" {...register('creditTerms')}>
+              <option value="CASH">Cash (paid immediately)</option>
+              <option value="NET_7">Net 7 days</option>
+              <option value="NET_14">Net 14 days</option>
+              <option value="NET_30">Net 30 days</option>
+              <option value="NET_60">Net 60 days</option>
+              <option value="CUSTOM">Custom due date</option>
+            </Select>
+            {creditTerms !== 'CASH' && (
+              <Input label="Due Date" type="date"
+                hint="Leave blank to auto-calculate from terms"
+                {...register('creditDueDate')} />
+            )}
+          </div>
+          <Input label="Notes (optional)" {...register('notes')} />
+          <div className="flex gap-2 justify-end">
+            <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button type="submit" size="sm" loading={mutation.isPending}>Save</Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }

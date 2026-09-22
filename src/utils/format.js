@@ -50,6 +50,14 @@ export function formatGrade(grade) {
 
 /** Returns a Tailwind color class for a coffee state badge */
 export function stateColor(state) {
-  const map = { WET: 'info', DRY: 'warning', HULLED: 'default', SORTED: 'primary', GRADED: 'success' };
+  const map = {
+    WET:       'info',
+    DRY:       'warning',
+    PARCHMENT: 'primary',
+    HULLED:    'default',
+    GREEN:     'success',
+    SORTED:    'primary',
+    GRADED:    'success',
+  };
   return map[state] || 'default';
 }

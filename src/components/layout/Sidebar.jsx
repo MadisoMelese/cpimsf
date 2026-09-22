@@ -72,8 +72,11 @@ export function Sidebar({ collapsed = false }) {
     { to: '/',               label: t('nav.dashboard'),      icon: LayoutDashboard, roles: null },
     { to: '/purchases',      label: t('nav.purchases'),      icon: ShoppingCart,    roles: null },
     { to: '/inventory',      label: t('nav.inventory'),      icon: Warehouse,       roles: null },
-    { to: '/processing',     label: t('nav.processing'),     icon: Cog,             roles: null },
-    { to: '/sales',          label: t('nav.sales'),          icon: TrendingUp,      roles: null },
+    // Processing is BOSS/ADMIN only — Storekeeper only receives
+    { to: '/processing',     label: t('nav.processing'),     icon: Cog,             roles: ['BOSS', 'ADMIN'] },
+    // Sales is BOSS/ADMIN only
+    { to: '/sales',          label: t('nav.sales'),          icon: TrendingUp,      roles: ['BOSS', 'ADMIN'] },
+    // Cash advances / payments is BOSS/ADMIN only
     { to: '/payments',       label: t('nav.cashAdvances'),   icon: CreditCard,      roles: ['BOSS', 'ADMIN'] },
     { to: '/reconciliation', label: t('nav.reconciliation'), icon: ClipboardCheck,  roles: ['BOSS', 'ADMIN', 'STOREKEEPER'] },
     { to: '/reports',        label: t('nav.reports'),        icon: BarChart3,       roles: ['BOSS', 'ADMIN', 'STOREKEEPER'] },
