@@ -9,10 +9,13 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Alert } from '../../components/ui/Alert';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function CreateProcessingModal({ onClose, onCreated }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [error, setError] = useState('');
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: locationsApi.list });
 
@@ -22,8 +25,11 @@ export function CreateProcessingModal({ onClose, onCreated }) {
 
   const mutation = useMutation({
     mutationFn: (data) => processingApi.create(data),
-    onSuccess: (res) => onCreated?.(res.data),
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed to create run'),
+    onSuccess: (res) => {
+      toast.success('Processing run created.');
+      onCreated?.(res.data);
+    },
+    onError: (err) => setError(parseApiError(err, 'Failed to create run')),
   });
 
   const onSubmit = (data) => {

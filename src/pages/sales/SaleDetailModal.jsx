@@ -7,12 +7,15 @@ import { Badge } from '../../components/ui/Badge';
 import { Alert } from '../../components/ui/Alert';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatKg, formatMoney, formatDate, stateColor, formatGrade } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function SaleDetailModal({ id, onClose }) {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [error, setError]           = useState('');
   const [confirming, setConfirming] = useState(false);
 
@@ -28,14 +31,14 @@ export function SaleDetailModal({ id, onClose }) {
 
   const confirmMutation = useMutation({
     mutationFn: () => salesApi.confirm(id, { operationId: newOperationId() }),
-    onSuccess: () => { invalidate(); setConfirming(false); },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Confirm failed'),
+    onSuccess: () => { invalidate(); setConfirming(false); toast.success('Sale confirmed.'); },
+    onError: (err) => setError(parseApiError(err, 'Confirm failed')),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => salesApi.cancel(id),
-    onSuccess: () => { invalidate(); onClose(); },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Cancel failed'),
+    onSuccess: () => { invalidate(); onClose(); toast.success('Sale cancelled.'); },
+    onError: (err) => setError(parseApiError(err, 'Cancel failed')),
   });
 
   if (isLoading) return <Modal open onClose={onClose} title="Sale"><PageSpinner /></Modal>;

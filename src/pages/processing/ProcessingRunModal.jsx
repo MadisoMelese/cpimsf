@@ -13,6 +13,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Alert } from '../../components/ui/Alert';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatKg, formatMoney, formatDate, formatPct, stateColor, formatGrade } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
 import { newOperationId } from '../../utils/operationId';
 
 export function ProcessingRunModal({ id, onClose }) {
@@ -185,7 +186,7 @@ function AddInputsForm({ runId, onDone, onError }) {
   const mutation = useMutation({
     mutationFn: (data) => processingApi.addInputs(runId, { inputs: data.inputs.map(i => ({ batchId: i.batchId, quantityKg: parseFloat(i.quantityKg) })) }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Failed to add inputs'),
+    onError: (err) => onError(parseApiError(err, 'Failed to add inputs')),
   });
 
   return (
@@ -258,7 +259,7 @@ function CompleteRunForm({ run, onDone, onError }) {
       outputs: data.outputs.map(o => ({ coffeeTypeId: o.coffeeTypeId, locationId: o.locationId, quantityKg: parseFloat(o.quantityKg), notes: o.notes || undefined })),
     }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Failed to complete run'),
+    onError: (err) => onError(parseApiError(err, 'Failed to complete run')),
   });
 
   return (
@@ -314,7 +315,7 @@ function CancelConfirm({ runId, onDone, onError, onBack }) {
   const mutation = useMutation({
     mutationFn: () => processingApi.cancel(runId),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Cancel failed'),
+    onError: (err) => onError(parseApiError(err, 'Cancel failed')),
   });
 
   return (

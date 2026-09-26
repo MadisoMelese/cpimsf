@@ -86,3 +86,19 @@ html {
   @theme tokens named --color-*. All custom color tokens above are available
   as standard Tailwind utilities: bg-danger-600, text-warning-500, etc.
 */
+
+/* ─── Login shake animation ───────────────────────────────────────────────── */
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-6px); }
+  30%       { transform: translateX(6px); }
+  45%       { transform: translateX(-4px); }
+  60%       { transform: translateX(4px); }
+  75%       { transform: translateX(-2px); }
+  90%       { transform: translateX(2px); }
+}
+
+.animate-shake {
+  animation: shake 0.55s cubic-bezier(.36,.07,.19,.97) both;
+}

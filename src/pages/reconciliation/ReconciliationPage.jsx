@@ -13,6 +13,8 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatDate, formatKg, formatMoney } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import { locationsApi } from '../../api/reference';
@@ -136,6 +138,7 @@ function SessionDetailModal({ id, onClose }) {
   const queryClient       = useQueryClient();
   const { isBossOrAdmin } = useAuth();
   const { t }             = useLanguage();
+  const toast             = useToast();
   const [step,        setStep]        = useState('view'); // view | verify | adjust | grade-payment | close
   const [error,       setError]       = useState('');
   const [closeNotes,  setCloseNotes]  = useState('');
@@ -152,8 +155,8 @@ function SessionDetailModal({ id, onClose }) {
 
   const closeMutation = useMutation({
     mutationFn: () => reconciliationApi.close(id, { notes: closeNotes }),
-    onSuccess: () => { invalidate(); setStep('view'); },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Close failed'),
+    onSuccess: () => { invalidate(); setStep('view'); toast.success('Period closed and locked.'); },
+    onError: (err) => setError(parseApiError(err, 'Close failed')),
   });
 
   if (isLoading) return <Modal open onClose={onClose} title="Session"><PageSpinner /></Modal>;
@@ -292,7 +295,7 @@ function VerifyForm({ sessionId, onDone, onError }) {
       verifications: data.verifications.map(v => ({ physicalKg: parseFloat(v.physicalKg), notes: v.notes || undefined })),
     }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Verification failed'),
+    onError: (err) => onError(parseApiError(err, 'Verification failed')),
   });
 
   return (
@@ -335,7 +338,7 @@ function AdjustForm({ sessionId, onDone, onError }) {
       operationId: newOperationId(),
     }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Adjustment failed'),
+    onError: (err) => onError(parseApiError(err, 'Adjustment failed')),
   });
 
   return (
@@ -420,6 +423,7 @@ function PurchaseGradePaymentRow({ purchase, onUpdated, onError }) {
   const [editing, setEditing] = useState(false);
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
+      grade:         purchase.items?.[0]?.coffeeType?.grade || '',
       creditTerms:   purchase.creditTerms   || 'CASH',
       creditDueDate: purchase.creditDueDate ? purchase.creditDueDate.split('T')[0] : '',
       notes:         purchase.notes || '',
@@ -435,10 +439,11 @@ function PurchaseGradePaymentRow({ purchase, onUpdated, onError }) {
     mutationFn: (data) => purchasesApi.setGradePayment(purchase.id, {
       creditTerms:   data.creditTerms,
       creditDueDate: data.creditDueDate || undefined,
+      grade:         data.grade         || undefined,
       notes:         data.notes || undefined,
     }),
     onSuccess: () => { setEditing(false); onUpdated(); },
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Update failed'),
+    onError: (err) => onError(parseApiError(err, 'Update failed')),
   });
 
   return (
@@ -492,6 +497,19 @@ function PurchaseGradePaymentRow({ purchase, onUpdated, onError }) {
         </div>
       ) : (
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-3 pt-1 border-t border-slate-100">
+          {/* Grade — Admin assigns here, not at receiving time */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 block mb-1">Grade</label>
+            <div className="flex gap-2">
+              {['', '1', '2', '3'].map(g => (
+                <label key={g} className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" value={g} {...register('grade')}
+                    className="text-primary-600 focus:ring-primary-500" />
+                  <span className="text-sm">{g === '' ? 'Not graded' : `Grade ${g}`}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Select label="Payment Type" {...register('creditTerms')}>
               <option value="CASH">Cash (paid immediately)</option>

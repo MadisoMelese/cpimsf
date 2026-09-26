@@ -6,10 +6,13 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Alert } from '../../components/ui/Alert';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AgentFormModal({ agent, onClose, onSaved }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const isEdit = Boolean(agent);
   const [error, setError] = useState('');
 
@@ -34,9 +37,10 @@ export function AgentFormModal({ agent, onClose, onSaved }) {
         ? agentsApi.update(agent.id, data)
         : agentsApi.create(data),
     onSuccess: (res) => {
+      toast.success(isEdit ? 'Agent updated.' : 'Agent created successfully.');
       onSaved?.(res.data);
     },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Save failed'),
+    onError: (err) => setError(parseApiError(err, 'Save failed')),
   });
 
   const onSubmit = (data) => {

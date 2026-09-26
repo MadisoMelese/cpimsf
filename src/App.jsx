@@ -5,6 +5,7 @@ import { SyncProvider } from './context/SyncContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageSpinner } from './components/ui/Spinner';
 import { LanguageProvider } from './context/LanguageContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // ─── Lazy page imports ────────────────────────────────────────────────────────
 const LoginPage          = lazy(() => import('./pages/auth/LoginPage'));
@@ -21,6 +22,7 @@ const AuditPage          = lazy(() => import('./pages/audit/AuditPage'));
 const UsersPage          = lazy(() => import('./pages/users/UsersPage'));
 const AgentsPage         = lazy(() => import('./pages/agents/AgentsPage'));
 const SettingsPage       = lazy(() => import('./pages/settings/SettingsPage'));
+const NotFoundPage       = lazy(() => import('./pages/NotFoundPage'));
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -44,7 +46,9 @@ function RequireRole({ roles, children }) {
 function AuthenticatedApp() {
   return (
     <SyncProvider>
-      <AppLayout />
+      <ErrorBoundary>
+        <AppLayout />
+      </ErrorBoundary>
     </SyncProvider>
   );
 }
@@ -88,8 +92,8 @@ function AppRoutes() {
           <Route path="settings"  element={<RequireRole roles={['BOSS', 'ADMIN']}><SettingsPage /></RequireRole>} />
         </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch-all → proper 404 page */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );

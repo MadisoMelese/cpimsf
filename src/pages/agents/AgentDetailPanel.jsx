@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Alert';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatKg, formatMoney, formatDate } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
 import { AgentFormModal } from './AgentFormModal';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -32,7 +33,7 @@ export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, 
       queryClient.invalidateQueries({ queryKey: ['agent-stats', agentId] });
       queryClient.invalidateQueries({ queryKey: ['agents-admin'] });
     },
-    onError: (err) => setPhotoError(err?.response?.data?.error?.message || 'Photo update failed'),
+    onError: (err) => setPhotoError(parseApiError(err, 'Photo update failed')),
   });
 
   function handlePhotoChange(e) {

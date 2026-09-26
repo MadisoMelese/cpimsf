@@ -13,11 +13,14 @@ import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
 import { newOperationId } from '../../utils/operationId';
 import { formatKg, formatMoney, stateColor, formatGrade } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function CreateSaleModal({ onClose, onCreated }) {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [error, setError] = useState('');
 
   // Load customers and active batches
@@ -64,10 +67,11 @@ export function CreateSaleModal({ onClose, onCreated }) {
     mutationFn: (data) => salesApi.create({ ...data, operationId: newOperationId() }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      toast.success('Sale draft created.');
       onCreated?.(res.data);
       onClose();
     },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed to create sale'),
+    onError: (err) => setError(parseApiError(err, 'Failed to create sale')),
   });
 
   const onSubmit = (data) => {

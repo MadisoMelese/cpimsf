@@ -8,11 +8,14 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Alert } from '../../components/ui/Alert';
 import { formatKg } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AdjustmentModal({ onClose, onSuccess }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [error, setError] = useState('');
 
   const { data: batchesActive  } = useQuery({ queryKey: ['batches-active'],  queryFn: () => inventoryApi.batches({ status: 'ACTIVE',            limit: 200, page: 1 }) });
@@ -34,8 +37,11 @@ export function AdjustmentModal({ onClose, onSuccess }) {
       reason:     data.reason,
       operationId: newOperationId(),
     }),
-    onSuccess,
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Adjustment failed'),
+    onSuccess: () => {
+      toast.success('Stock adjustment applied.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Adjustment failed')),
   });
 
   return (

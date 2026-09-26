@@ -12,6 +12,8 @@ import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatMoney, formatDate } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -25,6 +27,7 @@ const METHOD_LABELS = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', MOBILE_MONEY
 
 export function AdvanceDetailModal({ id, onClose, onUpdated }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const { isBossOrAdmin }  = useAuth();
   const [error, setError]  = useState('');
   const [step, setStep]    = useState('view'); // view | add-expense | record-return | void
@@ -37,10 +40,10 @@ export function AdvanceDetailModal({ id, onClose, onUpdated }) {
 
   const refresh = () => { onUpdated?.(); };
 
-  const submitM  = useMutation({ mutationFn: () => advancesApi.submit(id),  onSuccess: refresh, onError: e => setError(e?.response?.data?.error?.message || 'Failed') });
-  const approveM = useMutation({ mutationFn: () => advancesApi.approve(id), onSuccess: refresh, onError: e => setError(e?.response?.data?.error?.message || 'Failed') });
-  const voidM    = useMutation({ mutationFn: () => advancesApi.void(id, { reason: voidReason }), onSuccess: () => { refresh(); onClose(); }, onError: e => setError(e?.response?.data?.error?.message || 'Failed') });
-  const delExpM  = useMutation({ mutationFn: (expId) => advancesApi.deleteExpense(id, expId), onSuccess: refresh, onError: e => setError(e?.response?.data?.error?.message || 'Failed') });
+  const submitM  = useMutation({ mutationFn: () => advancesApi.submit(id),  onSuccess: () => { toast.success('Advance submitted.'); refresh(); }, onError: e => setError(parseApiError(e, 'Failed')) });
+  const approveM = useMutation({ mutationFn: () => advancesApi.approve(id), onSuccess: () => { toast.success('Advance approved.'); refresh(); }, onError: e => setError(parseApiError(e, 'Failed')) });
+  const voidM    = useMutation({ mutationFn: () => advancesApi.void(id, { reason: voidReason }), onSuccess: () => { toast.success('Advance voided.'); refresh(); onClose(); }, onError: e => setError(parseApiError(e, 'Failed')) });
+  const delExpM  = useMutation({ mutationFn: (expId) => advancesApi.deleteExpense(id, expId), onSuccess: () => { toast.success('Expense removed.'); refresh(); }, onError: e => setError(parseApiError(e, 'Failed')) });
 
   if (isLoading) return <Modal open onClose={onClose} title="Advance"><PageSpinner /></Modal>;
   const adv = data?.data;
@@ -252,7 +255,7 @@ function AddExpenseForm({ advanceId, agentId, onDone, onError }) {
       purchaseId: data.purchaseId || undefined,
     }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Failed to add expense'),
+    onError: (err) => onError(parseApiError(err, 'Failed to add expense')),
   });
 
   const category = watch('category');
@@ -320,7 +323,7 @@ function RecordReturnForm({ advanceId, balance, onDone, onError }) {
       returnedAmount: parseFloat(data.returnedAmount),
     }),
     onSuccess: onDone,
-    onError: (err) => onError(err?.response?.data?.error?.message || 'Failed'),
+    onError: (err) => onError(parseApiError(err, 'Failed')),
   });
 
   return (

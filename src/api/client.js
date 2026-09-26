@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { parseApiError } from '../utils/errors';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -23,12 +24,26 @@ api.interceptors.request.use((config) => {
 let isRefreshing = false;
 let refreshQueue = [];
 
+// Lazily resolved so ToastContext is mounted before first use
+let _showToast = null;
+export function registerToastFn(fn) { _showToast = fn; }
+
+// Status codes that are handled inline by individual components — don't toast these
+const SILENT_STATUSES = new Set([400, 401, 404, 409, 422]);
+
+// Endpoints that produce a 401 as a real response (not an expired-session signal)
+// — never attempt a token refresh for these.
+const NO_REFRESH_URLS = ['/auth/login', '/auth/refresh'];
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    const requestUrl = original?.url || '';
 
-    if (error.response?.status === 401 && !original._retry) {
+    const isAuthEndpoint = NO_REFRESH_URLS.some((u) => requestUrl.includes(u));
+
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
       if (isRefreshing) {
@@ -70,6 +85,14 @@ api.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    // For unexpected server errors (5xx, network timeouts, etc.)
+    // show a global toast so the user always gets feedback.
+    const status = error.response?.status;
+    if (_showToast && (!status || !SILENT_STATUSES.has(status))) {
+      const msg = parseApiError(error, 'Server error — please try again.');
+      _showToast('error', msg);
     }
 
     return Promise.reject(error);

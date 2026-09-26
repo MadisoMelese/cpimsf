@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { salesApi } from '../../api/sales';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td, TableEmpty } from '../../components/ui/Table';
@@ -16,15 +16,22 @@ export default function SalesPage() {
   const { t } = useLanguage();
   const [page,         setPage]         = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search,       setSearch]       = useState('');
   const [showCreate,   setShowCreate]   = useState(false);
   const [selectedId,   setSelectedId]   = useState(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['sales', { page, status: statusFilter }],
-    queryFn:  () => salesApi.list({ page, limit: 20, status: statusFilter || undefined }),
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['sales', { page, status: statusFilter, search }],
+    queryFn:  () => salesApi.list({
+      page,
+      limit:  20,
+      status: statusFilter || undefined,
+      search: search       || undefined,
+    }),
+    placeholderData: (prev) => prev,
   });
 
-  if (isLoading) return <PageSpinner />;
+  if (isLoading && !data) return <PageSpinner />;
   const sales = data?.data || [];
 
   return (
@@ -42,11 +49,18 @@ export default function SalesPage() {
       <Card padding={false}>
         {/* Filter bar */}
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
+          <div className="relative flex-1 max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder="Search by sale #, customer…" value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full rounded-lg border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {isFetching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+            )}
+          </div>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500">
             <option value="">{t('sales.allStatuses')}</option>
             {['DRAFT', 'CONFIRMED', 'CANCELLED'].map((s) => (
               <option key={s} value={s}>{s}</option>

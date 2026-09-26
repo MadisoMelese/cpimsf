@@ -17,7 +17,7 @@ export default function AgentsPage() {
   const [selectedId,       setSelectedId]       = useState(null);
   const [showCreate,       setShowCreate]       = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ['agents-admin', { search, includeInactive, filterType }],
     queryFn:  () => agentsApi.list({
       page: 1, limit: 200,
@@ -26,6 +26,7 @@ export default function AgentsPage() {
       isSupplier:      filterType === 'supplier' ? 'true' : filterType === 'customer' ? undefined : undefined,
       isCustomer:      filterType === 'customer' ? 'true' : undefined,
     }),
+    placeholderData: (prev) => prev,
   });
 
   const agents = (data?.data || []).filter(a => {
@@ -41,11 +42,9 @@ export default function AgentsPage() {
     onSuccess:  () => { queryClient.invalidateQueries({ queryKey: ['agents-admin'] }); setSelectedId(null); },
   });
 
-  if (isLoading) return <PageSpinner />;
-
-  const activeCount   = (data?.data || []).filter(a => a.isActive).length;
   const supplierCount = (data?.data || []).filter(a => a.isSupplier).length;
   const customerCount = (data?.data || []).filter(a => a.isCustomer).length;
+  const activeCount   = (data?.data || []).filter(a => a.isActive).length;
 
   return (
     <div className="flex gap-5 h-full" style={{ minHeight: 'calc(100vh - 120px)' }}>
@@ -72,8 +71,11 @@ export default function AgentsPage() {
             placeholder="Search by name, code, phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-slate-300 pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+          {isFetching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+          )}
         </div>
 
         {/* Filters */}

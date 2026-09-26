@@ -8,6 +8,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Alert } from '../../components/ui/Alert';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -16,6 +18,7 @@ const METHOD_LABELS = { CASH: 'Cash', BANK_TRANSFER: 'Bank Transfer', MOBILE_MON
 
 export function GiveAdvanceModal({ onClose, onSuccess }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [error, setError] = useState('');
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => agentsApi.list({ isSupplier: true }) });
 
@@ -25,8 +28,11 @@ export function GiveAdvanceModal({ onClose, onSuccess }) {
 
   const mutation = useMutation({
     mutationFn: (data) => advancesApi.give({ ...data, amount: parseFloat(data.amount), operationId: newOperationId() }),
-    onSuccess,
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed to record advance'),
+    onSuccess: () => {
+      toast.success('Cash advance recorded.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Failed to record advance')),
   });
 
   return (

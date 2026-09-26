@@ -10,11 +10,14 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Alert } from '../../components/ui/Alert';
 import { formatKg } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function TransferModal({ onClose, onSuccess }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [error, setError] = useState('');
 
   const { data: locations }    = useQuery({ queryKey: ['locations'],    queryFn: locationsApi.list });
@@ -42,8 +45,11 @@ export function TransferModal({ onClose, onSuccess }) {
       operationId:    newOperationId(),
       lines: data.lines.map(l => ({ fromBatchId: l.fromBatchId, quantityKg: parseFloat(l.quantityKg) })),
     }),
-    onSuccess,
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Transfer failed'),
+    onSuccess: () => {
+      toast.success('Transfer completed successfully.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Transfer failed')),
   });
 
   // Only show batches from the selected from-location

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { usersApi } from '../../api/reference';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td, TableEmpty } from '../../components/ui/Table';
@@ -9,7 +9,10 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { Alert } from '../../components/ui/Alert';
 import { PageSpinner } from '../../components/ui/Spinner';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useForm } from 'react-hook-form';
 import { formatDateTime } from '../../utils/format';
 import { useLanguage } from '../../context/LanguageContext';
@@ -18,10 +21,12 @@ export default function UsersPage() {
   const { t } = useLanguage();
   const queryClient  = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [search,     setSearch]     = useState('');
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['users'],
-    queryFn:  () => usersApi.list({ page: 1, limit: 50 }),
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['users', { search }],
+    queryFn:  () => usersApi.list({ page: 1, limit: 50, search: search || undefined }),
+    placeholderData: (prev) => prev,
   });
 
   const toggleMutation = useMutation({
@@ -29,7 +34,6 @@ export default function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
 
-  if (isLoading) return <PageSpinner />;
   const users = data?.data || [];
 
   return (
@@ -40,6 +44,18 @@ export default function UsersPage() {
       </div>
 
       <Card padding={false}>
+        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder="Search by name, username, email…" value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {isFetching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+            )}
+          </div>
+        </div>
         <Table>
           <Thead>
             <tr>
@@ -82,11 +98,19 @@ export default function UsersPage() {
 
 function CreateUserModal({ onClose }) {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
+  const toast = useToast();
+  const [error, setError] = useState('');
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const mutation = useMutation({
     mutationFn: (data) => usersApi.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); onClose(); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('User created successfully.');
+      onClose();
+    },
+    onError: (err) => setError(parseApiError(err, 'Failed to create user')),
   });
 
   return (
@@ -98,6 +122,7 @@ function CreateUserModal({ onClose }) {
         </>
       }
     >
+      {error && <Alert variant="danger" className="mb-4" onDismiss={() => setError('')}>{error}</Alert>}
       <form id="create-user-form" onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
         <Input label={t('users.fullName')} required error={errors.fullName?.message} {...register('fullName', { required: 'Required' })} />
         <Input label={t('users.username')} required error={errors.username?.message} {...register('username', { required: 'Required' })} />

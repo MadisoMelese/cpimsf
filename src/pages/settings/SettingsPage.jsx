@@ -9,6 +9,8 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useForm } from 'react-hook-form';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -107,6 +109,7 @@ function LocationsTab() {
 }
 
 function LocationFormModal({ location, onClose, onSuccess }) {
+  const toast = useToast();
   const [error, setError] = useState('');
   const isEdit = Boolean(location);
 
@@ -116,8 +119,11 @@ function LocationFormModal({ location, onClose, onSuccess }) {
 
   const mutation = useMutation({
     mutationFn: (data) => isEdit ? locationsApi.update(location.id, data) : locationsApi.create(data),
-    onSuccess,
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed'),
+    onSuccess: () => {
+      toast.success(isEdit ? 'Location updated.' : 'Location created.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Failed')),
   });
 
   return (
@@ -212,6 +218,7 @@ function CoffeeTypesTab() {
 }
 
 function CoffeeTypeFormModal({ coffeeType, onClose, onSuccess }) {
+  const toast = useToast();
   const [error, setError] = useState('');
   const isEdit = Boolean(coffeeType);
 
@@ -223,8 +230,11 @@ function CoffeeTypeFormModal({ coffeeType, onClose, onSuccess }) {
 
   const mutation = useMutation({
     mutationFn: (data) => isEdit ? coffeeTypesApi.update(coffeeType.id, data) : coffeeTypesApi.create(data),
-    onSuccess,
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed'),
+    onSuccess: () => {
+      toast.success(isEdit ? 'Coffee type updated.' : 'Coffee type created.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Failed')),
   });
 
   return (

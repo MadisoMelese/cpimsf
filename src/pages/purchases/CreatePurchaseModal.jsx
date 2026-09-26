@@ -11,11 +11,14 @@ import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
 import { newOperationId } from '../../utils/operationId';
 import { stateColor } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 export function CreatePurchaseModal({ onClose }) {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [error, setError] = useState('');
   const { isBossOrAdmin } = useAuth();
 
@@ -37,28 +40,23 @@ export function CreatePurchaseModal({ onClose }) {
   const ctMap = {};
   (coffeeTypes?.data || []).forEach(c => { ctMap[c.id] = c; });
 
-  // Storekeeper only sees WET/DRY, and only UNGRADED types (no grade assigned yet)
-  // Grade is assigned by Admin during reconciliation
-  const visibleCoffeeTypes = (coffeeTypes?.data || []).filter(c => {
-    if (isBossOrAdmin) return true;
-    // Storekeeper: only WET or DRY states, and no grade (or grade will be set later)
-    return ['WET', 'DRY'].includes(c.state);
-  });
+  // Storekeeper only sees WET/DRY states (Cherry = what agents deliver)
+  // Grade is null in seed — Admin assigns grade during reconciliation
+  const visibleCoffeeTypes = (coffeeTypes?.data || []).filter(c =>
+    isBossOrAdmin ? true : ['WET', 'DRY', 'PARCHMENT'].includes(c.state)
+  );
 
-  // For storekeeper display — show state-based label without grade
-  const displayName = (c) => {
-    if (isBossOrAdmin) return c.name;
-    // Strip grade info from name for Storekeeper — they just pick WET or DRY
-    return `${c.state === 'WET' ? 'Wet Cherry' : 'Dry Cherry'} (${c.code})`;
-  };
+  // Simple display name — grade is empty so no stripping needed
+  const displayName = (c) => c.name;
 
   const mutation = useMutation({
     mutationFn: (data) => purchasesApi.create({ ...data, operationId: newOperationId() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      toast.success('Receiving record saved successfully.');
       onClose();
     },
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Failed to create purchase'),
+    onError: (err) => setError(parseApiError(err, 'Failed to create purchase')),
   });
 
   const onSubmit = (data) => {

@@ -8,6 +8,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Alert } from '../../components/ui/Alert';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { formatMoney, formatDate } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 
 const METHOD_LABELS = {
   CASH: 'Cash', BANK_TRANSFER: 'Bank Transfer',
@@ -16,6 +18,7 @@ const METHOD_LABELS = {
 
 export function PaymentHistoryModal({ type, transactionId, transactionNumber, onClose }) {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [voidTarget, setVoidTarget] = useState(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidError,  setVoidError]  = useState('');
@@ -38,8 +41,9 @@ export function PaymentHistoryModal({ type, transactionId, transactionNumber, on
       setVoidTarget(null);
       setVoidReason('');
       setVoidError('');
+      toast.success('Payment voided.');
     },
-    onError: (err) => setVoidError(err?.response?.data?.error?.message || 'Void failed'),
+    onError: (err) => setVoidError(parseApiError(err, 'Void failed')),
   });
 
   if (isLoading) return <Modal open onClose={onClose} title="Payment History"><PageSpinner /></Modal>;

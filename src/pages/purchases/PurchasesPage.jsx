@@ -24,9 +24,15 @@ export default function PurchasesPage() {
   const [showCreate, setShowCreate]   = useState(false);
   const [selectedId, setSelectedId]   = useState(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['purchases', { page, status: statusFilter }],
-    queryFn:  () => purchasesApi.list({ page, limit: 20, status: statusFilter || undefined }),
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['purchases', { page, status: statusFilter, search }],
+    queryFn:  () => purchasesApi.list({
+      page,
+      limit:  20,
+      status: statusFilter || undefined,
+      search: search       || undefined,
+    }),
+    placeholderData: (prev) => prev,
   });
 
   const approveMutation = useMutation({
@@ -34,7 +40,7 @@ export default function PurchasesPage() {
     onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['purchases'] }),
   });
 
-  if (isLoading) return <PageSpinner />;
+  if (isLoading && !data) return <PageSpinner />;
 
   const purchases = data?.data || [];
 
@@ -59,9 +65,12 @@ export default function PurchasesPage() {
               type="text"
               placeholder="Search purchases…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            {isFetching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+            )}
           </div>
           <select
             value={statusFilter}

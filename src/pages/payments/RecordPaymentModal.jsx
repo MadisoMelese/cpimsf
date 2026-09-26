@@ -8,6 +8,8 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Alert } from '../../components/ui/Alert';
 import { formatMoney } from '../../utils/format';
+import { parseApiError } from '../../utils/errors';
+import { useToast } from '../../context/ToastContext';
 import { newOperationId } from '../../utils/operationId';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -23,6 +25,7 @@ const METHOD_LABELS = {
 
 export function RecordPaymentModal({ type, transactionId, transactionNumber, remainingAmount, onClose, onSuccess }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const isAP = type === 'purchase';  // AP = paying supplier, AR = receiving from customer
   const [error, setError] = useState('');
 
@@ -44,8 +47,11 @@ export function RecordPaymentModal({ type, transactionId, transactionNumber, rem
       isAP
         ? paymentsApi.payPurchase(transactionId, data)
         : paymentsApi.receiveSale(transactionId, data),
-    onSuccess: () => onSuccess?.(),
-    onError: (err) => setError(err?.response?.data?.error?.message || 'Payment failed'),
+    onSuccess: () => {
+      toast.success(isAP ? 'Payment recorded.' : 'Receipt recorded.');
+      onSuccess?.();
+    },
+    onError: (err) => setError(parseApiError(err, 'Payment failed')),
   });
 
   const onSubmit = (data) => {
