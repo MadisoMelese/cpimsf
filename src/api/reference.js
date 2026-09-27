@@ -30,6 +30,7 @@ export const usersApi = {
   create:         (data)   => api.post('/users', data).then((r) => r.data),
   update:         (id, d)  => api.patch(`/users/${id}`, d).then((r) => r.data),
   changePassword: (id, d)  => api.post(`/users/${id}/change-password`, d).then((r) => r.data),
+  resetPassword:  (id, d)  => api.post(`/users/${id}/reset-password`, d).then((r) => r.data),
 };
 
 export const auditApi = {

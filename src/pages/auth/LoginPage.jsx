@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Coffee, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -198,6 +198,15 @@ export default function LoginPage() {
             >
               {t('login.signIn')}
             </Button>
+
+            <div className="text-center">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                Forgot your password?
+              </Link>
+            </div>
           </form>
         </div>
 

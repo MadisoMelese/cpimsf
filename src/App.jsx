@@ -9,6 +9,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 // ─── Lazy page imports ────────────────────────────────────────────────────────
 const LoginPage          = lazy(() => import('./pages/auth/LoginPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage  = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const DashboardPage      = lazy(() => import('./pages/dashboard/DashboardPage'));
 const PurchasesPage      = lazy(() => import('./pages/purchases/PurchasesPage'));
 const InventoryPage      = lazy(() => import('./pages/inventory/InventoryPage'));
@@ -59,7 +61,9 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageSpinner />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login"           element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password"  element={<ResetPasswordPage />} />
 
         <Route
           element={

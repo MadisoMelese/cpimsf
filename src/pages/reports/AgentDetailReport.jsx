@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Printer, Phone, MapPin, TrendingUp, Package, CreditCard, Calendar } from 'lucide-react';
 import { reportsApi } from '../../api/reports';
@@ -237,9 +238,9 @@ export default function AgentDetailReport({ agentId, startDate, endDate, onBack 
                 </Thead>
                 <Tbody>
                   {purchases.map((p) => (
-                    <>
+                    <React.Fragment key={p.purchaseId}>
                       {/* Purchase header row */}
-                      <Tr key={p.purchaseId} className="bg-slate-50">
+                      <Tr className="bg-slate-50">
                         <Td className="font-semibold text-primary-700">{p.purchaseNumber}</Td>
                         <Td className="font-medium">{formatDate(p.purchaseDate)}</Td>
                         <Td>{p.locationName}</Td>
@@ -289,7 +290,7 @@ export default function AgentDetailReport({ agentId, startDate, endDate, onBack 
                           <Td colSpan={2}></Td>
                         </Tr>
                       ))}
-                    </>
+                    </React.Fragment>
                   ))}
                 </Tbody>
               </Table>
