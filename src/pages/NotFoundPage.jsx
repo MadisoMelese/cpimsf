@@ -1,10 +1,11 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass, ArrowLeft, Home } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 
 export default function NotFoundPage() {
   const location = useLocation();
+  const navigate  = useNavigate();
   const { user }  = useAuth();
 
   return (
@@ -37,7 +38,7 @@ export default function NotFoundPage() {
           <Button variant="secondary" onClick={() => window.history.back()}>
             <ArrowLeft size={15} /> Go back
           </Button>
-          <Button as={Link} to={user ? '/' : '/login'}>
+          <Button onClick={() => navigate(user ? '/' : '/login')}>
             <Home size={15} />
             {user ? 'Dashboard' : 'Sign in'}
           </Button>

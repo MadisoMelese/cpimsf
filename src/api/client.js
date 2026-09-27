@@ -31,19 +31,16 @@ export function registerToastFn(fn) { _showToast = fn; }
 // Status codes that are handled inline by individual components — don't toast these
 const SILENT_STATUSES = new Set([400, 401, 404, 409, 422]);
 
-// Endpoints that produce a 401 as a real response (not an expired-session signal)
-// — never attempt a token refresh for these.
-const NO_REFRESH_URLS = ['/auth/login', '/auth/refresh'];
-
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    const requestUrl = original?.url || '';
 
-    const isAuthEndpoint = NO_REFRESH_URLS.some((u) => requestUrl.includes(u));
+    // _skipAuthRefresh is set on login/refresh requests — a 401 from those
+    // is a real credential failure, not an expired session. Pass it straight through.
+    const skipRefresh = original?._skipAuthRefresh === true;
 
-    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && !original._retry && !skipRefresh) {
       original._retry = true;
 
       if (isRefreshing) {
