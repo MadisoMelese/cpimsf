@@ -381,8 +381,8 @@ function PaymentsReport({ startDate, endDate }) {
         {[
           { label: 'Purchase Payments', value: formatMoney(d.summary.totalPurchasePayments), color: 'success' },
           { label: 'Sale Receipts',     value: formatMoney(d.summary.totalSaleReceipts),     color: 'info'    },
-          { label: 'Overdue',           value: d.summary.overdueCount,      color: d.summary.overdueCount > 0 ? 'danger' : 'default' },
-          { label: 'Outstanding',       value: d.summary.outstandingCount,  color: 'warning' },
+          { label: 'Cash in Agent Hand',value: d.summary.overdueCount,      color: d.summary.overdueCount > 0 ? 'warning' : 'default' },
+          { label: 'Outstanding',       value: d.summary.outstandingCount,  color: 'danger' },
         ].map((s) => (
           <Card key={s.label}>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{s.label}</p>
@@ -391,19 +391,31 @@ function PaymentsReport({ startDate, endDate }) {
         ))}
       </div>
 
-      {/* Overdue */}
+      {/* Overdue — agents holding unaccounted advance cash */}
       {d.overdue?.length > 0 && (
         <Card padding={false}>
-          <CardHeader title="Overdue Payments" subtitle="Past credit due date with remaining balance" className="px-5 pt-5" />
+          <CardHeader
+            title="Cash in Agent Hand"
+            subtitle="Agents holding advance cash that hasn't been fully accounted for"
+            className="px-5 pt-5"
+          />
           <Table>
-            <Thead><tr><Th>Purchase #</Th><Th>Agent</Th><Th>Due Date</Th><Th className="text-right">Remaining</Th></tr></Thead>
+            <Thead>
+              <tr>
+                <Th>Agent</Th>
+                <Th className="text-right">Cash in Hand</Th>
+              </tr>
+            </Thead>
             <Tbody>
-              {d.overdue.map((p, i) => (
+              {d.overdue.map((row, i) => (
                 <Tr key={i}>
-                  <Td className="font-medium text-primary-700">{p.purchaseNumber}</Td>
-                  <Td>{p.agentName}</Td>
-                  <Td className="text-danger-600 font-medium">{formatDate(p.creditDueDate)}</Td>
-                  <Td className="text-right tabular-nums font-bold text-danger-600">{formatMoney(p.remainingAmount)}</Td>
+                  <Td>
+                    <p className="font-medium text-slate-900">{row.agentName}</p>
+                    <p className="text-xs text-slate-400 font-mono">{row.agentCode}</p>
+                  </Td>
+                  <Td className="text-right tabular-nums font-bold text-info-600">
+                    {formatMoney(row.cashInHand)}
+                  </Td>
                 </Tr>
               ))}
             </Tbody>
@@ -411,19 +423,20 @@ function PaymentsReport({ startDate, endDate }) {
         </Card>
       )}
 
-      {/* Outstanding */}
+      {/* Outstanding — agents who still owe us more than advance + payments cover */}
       {d.outstanding?.length > 0 && (
         <Card padding={false}>
-          <CardHeader title="Outstanding Credit Balances" className="px-5 pt-5" />
+          <CardHeader title="Outstanding Balances" subtitle="Amount still owed after deducting payments and cash advances" className="px-5 pt-5" />
           <Table>
-            <Thead><tr><Th>Purchase #</Th><Th>Agent</Th><Th>Due Date</Th><Th className="text-right">Remaining</Th></tr></Thead>
+            <Thead><tr><Th>Agent</Th><Th className="text-right">Outstanding Balance</Th></tr></Thead>
             <Tbody>
-              {d.outstanding.map((p, i) => (
+              {d.outstanding.map((row, i) => (
                 <Tr key={i}>
-                  <Td className="font-medium text-primary-700">{p.purchaseNumber}</Td>
-                  <Td>{p.agentName}</Td>
-                  <Td className={new Date(p.creditDueDate) < new Date() ? 'text-danger-600 font-medium' : ''}>{formatDate(p.creditDueDate)}</Td>
-                  <Td className="text-right tabular-nums font-semibold text-warning-700">{formatMoney(p.remainingAmount)}</Td>
+                  <Td>
+                    <p className="font-medium text-slate-900">{row.agentName}</p>
+                    <p className="text-xs text-slate-400 font-mono">{row.agentCode}</p>
+                  </Td>
+                  <Td className="text-right tabular-nums font-semibold text-warning-700">{formatMoney(row.remainingAmount)}</Td>
                 </Tr>
               ))}
             </Tbody>

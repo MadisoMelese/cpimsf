@@ -51,8 +51,13 @@ export function CreatePurchaseModal({ onClose }) {
 
   const mutation = useMutation({
     mutationFn: (data) => purchasesApi.create({ ...data, operationId: newOperationId() }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      // Invalidate agent stats so the balance updates immediately in AgentDetailPanel
+      const agentId = res?.data?.agentId;
+      if (agentId) {
+        queryClient.invalidateQueries({ queryKey: ['agent-stats', agentId] });
+      }
       toast.success('Receiving record saved successfully.');
       onClose();
     },

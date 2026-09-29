@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Plus, Trash2, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
 import { advancesApi } from '../../api/advances';
@@ -28,9 +28,10 @@ const METHOD_LABELS = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', MOBILE_MONEY
 export function AdvanceDetailModal({ id, onClose, onUpdated }) {
   const { t } = useLanguage();
   const toast = useToast();
+  const queryClient    = useQueryClient();
   const { isBossOrAdmin }  = useAuth();
   const [error, setError]  = useState('');
-  const [step, setStep]    = useState('view'); // view | add-expense | record-return | void
+  const [step, setStep]    = useState('view');
   const [voidReason, setVoidReason] = useState('');
 
   const { data, isLoading } = useQuery({
@@ -38,7 +39,14 @@ export function AdvanceDetailModal({ id, onClose, onUpdated }) {
     queryFn:  () => advancesApi.get(id),
   });
 
-  const refresh = () => { onUpdated?.(); };
+  const refresh = () => {
+    onUpdated?.();
+    // Invalidate agent stats so AgentDetailPanel advances section updates
+    const agentId = data?.data?.agentId;
+    if (agentId) {
+      queryClient.invalidateQueries({ queryKey: ['agent-stats', agentId] });
+    }
+  };
 
   const submitM  = useMutation({ mutationFn: () => advancesApi.submit(id),  onSuccess: () => { toast.success('Advance submitted.'); refresh(); }, onError: e => setError(parseApiError(e, 'Failed')) });
   const approveM = useMutation({ mutationFn: () => advancesApi.approve(id), onSuccess: () => { toast.success('Advance approved.'); refresh(); }, onError: e => setError(parseApiError(e, 'Failed')) });

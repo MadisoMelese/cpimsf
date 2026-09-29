@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Edit2, Trash2, UserX, UserCheck, Camera, Phone, Mail,
   MapPin, TrendingUp, Package, CreditCard, Calendar, AlertTriangle,
+  Wallet,
 } from 'lucide-react';
 import { agentsApi } from '../../api/reference';
 import { Badge } from '../../components/ui/Badge';
@@ -12,6 +13,7 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { formatKg, formatMoney, formatDate } from '../../utils/format';
 import { parseApiError } from '../../utils/errors';
 import { AgentFormModal } from './AgentFormModal';
+import { RecordPaymentModal } from '../payments/RecordPaymentModal';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, onUpdated }) {
@@ -20,6 +22,7 @@ export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, 
   const [editOpen,    setEditOpen]    = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [photoError,  setPhotoError]  = useState('');
+  const [payTarget,   setPayTarget]   = useState(null); // { id, purchaseNumber, remaining }
   const fileInputRef  = useRef(null);
 
   const { data, isLoading, error } = useQuery({
@@ -183,15 +186,22 @@ export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, 
       {a.stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: 'Total Purchases',  value: a.stats.purchaseCount,       icon: Package,    color: 'text-slate-900'   },
-            { label: 'Total KG',         value: formatKg(a.stats.totalKg),   icon: TrendingUp, color: 'text-primary-700' },
-            { label: 'Total Amount',     value: formatMoney(a.stats.totalMoney), icon: CreditCard, color: 'text-success-700' },
-            {
-              label: 'Outstanding Balance',
-              value: formatMoney(a.stats.balance),
-              icon: AlertTriangle,
-              color: balance > 0 ? 'text-danger-600' : 'text-success-600',
-            },
+            { label: 'Total Purchases', value: a.stats.purchaseCount,           icon: Package,    color: 'text-slate-900'   },
+            { label: 'Total KG',        value: formatKg(a.stats.totalKg),       icon: TrendingUp, color: 'text-primary-700' },
+            { label: 'Total Amount',    value: formatMoney(a.stats.totalMoney), icon: CreditCard, color: 'text-success-700' },
+            balance < 0
+              ? {
+                  label: 'Cash in Agent Hand',
+                  value: formatMoney(Math.abs(balance)),
+                  icon:  Wallet,
+                  color: 'text-info-600',
+                }
+              : {
+                  label: 'Outstanding Balance',
+                  value: balance > 0 ? formatMoney(balance) : '✓ Settled',
+                  icon:  AlertTriangle,
+                  color: balance > 0 ? 'text-danger-600' : 'text-success-600',
+                },
           ].map((s) => {
             const Icon = s.icon;
             return (
@@ -209,21 +219,104 @@ export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, 
 
       {/* Payment summary */}
       {a.stats && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Payment Breakdown</p>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">{t('agentsPage.avgPrice')}</span>
-            <span className="font-semibold tabular-nums">{formatMoney(a.stats.avgPriceKg)}</span>
+            <span className="text-slate-500">Total purchases</span>
+            <span className="font-semibold tabular-nums">{formatMoney(a.stats.totalMoney)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm mt-2">
-            <span className="text-slate-500">Total Paid</span>
-            <span className="font-semibold text-success-600 tabular-nums">{formatMoney(a.stats.totalPaid)}</span>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">Paid via payments</span>
+            <span className="font-semibold text-success-600 tabular-nums">− {formatMoney(a.stats.totalPaid)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm mt-2">
-            <span className="text-slate-500">{t('agentsPage.outstandingBal')}</span>
-            <span className={`font-bold tabular-nums ${balance > 0 ? 'text-danger-600' : 'text-success-600'}`}>
-              {formatMoney(a.stats.balance)}
+          {parseFloat(a.stats.totalAdvanced) > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Cash advances given</span>
+              <span className="font-semibold text-info-600 tabular-nums">− {formatMoney(a.stats.totalAdvanced)}</span>
+            </div>
+          )}
+          <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-sm">
+            <span className="font-medium text-slate-700">
+              {balance > 0 ? 'Outstanding balance' : balance < 0 ? 'Cash in agent hand' : 'Fully settled'}
             </span>
+            <div className="flex items-center gap-3">
+              <span className={`font-bold tabular-nums ${
+                balance > 0 ? 'text-danger-600' : balance < 0 ? 'text-info-600' : 'text-success-600'
+              }`}>
+                {balance === 0 ? '✓ Settled' : formatMoney(Math.abs(balance))}
+              </span>
+              {/* Pay button — only shown when we still owe the agent money.
+                  Advance already deducted from balance, so this is the true shortfall. */}
+              {balance > 0.005 && (() => {
+                // Find the first purchase that still has an unpaid balance for the modal
+                const unpaid = a.recentPurchases?.find(p => {
+                  const pMoney = p.items?.reduce((s, i) => s + parseFloat(i.totalPrice), 0) || 0;
+                  const pPaid  = p.payments?.reduce((s, py) => s + parseFloat(py.amount), 0) || 0;
+                  return pMoney - pPaid > 0.005;
+                });
+                if (!unpaid) return null;
+                return (
+                  <Button
+                    size="xs"
+                    onClick={() => setPayTarget({
+                      id:             unpaid.id,
+                      purchaseNumber: unpaid.purchaseNumber,
+                      // Payable = agent's total outstanding balance (advance already deducted)
+                      remaining:      balance,
+                    })}
+                  >
+                    Pay {formatMoney(balance)}
+                  </Button>
+                );
+              })()}
+            </div>
           </div>
+          {balance < 0 && (
+            <p className="text-xs text-info-600 bg-info-50 rounded-lg px-3 py-1.5">
+              Agent holds {formatMoney(Math.abs(balance))} in unused advance cash — to be returned or applied to the next purchase.
+            </p>
+          )}
+          <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+            <span>Avg price / KG</span>
+            <span className="tabular-nums">{formatMoney(a.stats.avgPriceKg)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Recent advances ── */}
+      {a.recentAdvances?.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <Wallet size={14} className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-900">Cash Advances</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Advance #</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Date</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Method</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {a.recentAdvances.map(adv => {
+                const statusColors = { PENDING: 'warning', ACCOUNTED: 'info', APPROVED: 'success', VOIDED: 'default' };
+                return (
+                  <tr key={adv.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 font-medium text-primary-700">{adv.advanceNumber}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{formatDate(adv.advanceDate)}</td>
+                    <td className="px-4 py-2.5 text-slate-500 text-xs">{adv.paymentMethod}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-info-700">{formatMoney(adv.amount)}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant={statusColors[adv.status] || 'default'}>{adv.status}</Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -239,33 +332,49 @@ export function AgentDetailPanel({ agentId, onActivate, onDeactivate, onDelete, 
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Purchase #</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Date</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Location</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">KG</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Balance</th>
+                <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {a.recentPurchases.map((p) => {
-                const pKg     = p.items?.reduce((s, i) => s + parseFloat(i.quantityKg), 0) || 0;
-                const pMoney  = p.items?.reduce((s, i) => s + parseFloat(i.totalPrice),  0) || 0;
-                const pPaid   = p.payments?.reduce((s, py) => s + parseFloat(py.amount), 0) || 0;
-                const pBal    = pMoney - pPaid;
+                const pMoney = p.items?.reduce((s, i) => s + parseFloat(i.totalPrice), 0) || 0;
+                const pPaid  = p.payments?.reduce((s, py) => s + parseFloat(py.amount), 0) || 0;
+                // Net advance on this agent's account. The advance is shared across all
+                // purchases — we display the per-purchase raw balance for reference only.
+                const pBal   = pMoney - pPaid;
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5 font-medium text-primary-700">{p.purchaseNumber}</td>
                     <td className="px-4 py-2.5 text-slate-500">{formatDate(p.purchaseDate)}</td>
                     <td className="px-4 py-2.5 text-slate-500">{p.location?.name}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatKg(pKg)}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(pMoney)}</td>
-                    <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${pBal > 0 ? 'text-danger-600' : 'text-success-600'}`}>
-                      {formatMoney(pBal)}
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pBal > 0.005 ? 'text-slate-600' : 'text-success-600'}`}>
+                      {pBal > 0.005 ? formatMoney(pBal) : '✓ Paid'}
                     </td>
+                    <td className="px-4 py-2.5"></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Record Payment modal */}
+      {payTarget && (
+        <RecordPaymentModal
+          type="purchase"
+          transactionId={payTarget.id}
+          transactionNumber={payTarget.purchaseNumber}
+          remainingAmount={payTarget.remaining}
+          onClose={() => setPayTarget(null)}
+          onSuccess={() => {
+            setPayTarget(null);
+            queryClient.invalidateQueries({ queryKey: ['agent-stats', agentId] });
+          }}
+        />
       )}
 
       {/* ── Delete confirmation ── */}

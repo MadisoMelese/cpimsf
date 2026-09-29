@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { advancesApi } from '../../api/advances';
 import { agentsApi } from '../../api/reference';
 import { Modal } from '../../components/ui/Modal';
@@ -19,16 +19,26 @@ const METHOD_LABELS = { CASH: 'Cash', BANK_TRANSFER: 'Bank Transfer', MOBILE_MON
 export function GiveAdvanceModal({ onClose, onSuccess }) {
   const { t } = useLanguage();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => agentsApi.list({ isSupplier: true }) });
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
     defaultValues: { advanceDate: new Date().toISOString().split('T')[0], paymentMethod: 'CASH' },
   });
+
+  const selectedAgentId = watch('agentId');
 
   const mutation = useMutation({
     mutationFn: (data) => advancesApi.give({ ...data, amount: parseFloat(data.amount), operationId: newOperationId() }),
     onSuccess: () => {
+      // Invalidate advances lists
+      queryClient.invalidateQueries({ queryKey: ['advances-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['advances-list'] });
+      // Invalidate agent stats so AgentDetailPanel updates immediately
+      if (selectedAgentId) {
+        queryClient.invalidateQueries({ queryKey: ['agent-stats', selectedAgentId] });
+      }
       toast.success('Cash advance recorded.');
       onSuccess?.();
     },

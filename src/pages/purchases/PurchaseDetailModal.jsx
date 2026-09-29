@@ -10,14 +10,17 @@ import { useAuth } from '../../context/AuthContext';
 import { newOperationId } from '../../utils/operationId';
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { RecordPaymentModal } from '../payments/RecordPaymentModal';
+import { parseApiError } from '../../utils/errors';
 
 export function PurchaseDetailModal({ id, onClose }) {
   const { t } = useLanguage();
   const queryClient      = useQueryClient();
   const { isBossOrAdmin } = useAuth();
-  const [error, setError] = useState('');
+  const [error, setError]         = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject]     = useState(false);
+  const [showPayment, setShowPayment]   = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchase', id],
@@ -27,12 +30,13 @@ export function PurchaseDetailModal({ id, onClose }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['purchases'] });
     queryClient.invalidateQueries({ queryKey: ['purchase', id] });
+    queryClient.invalidateQueries({ queryKey: ['payments-outstanding-ap'] });
   };
 
-  const submitMutation  = useMutation({ mutationFn: () => purchasesApi.submit(id),  onSuccess: invalidate, onError: (e) => setError(e?.response?.data?.error?.message) });
-  const verifyMutation  = useMutation({ mutationFn: () => purchasesApi.verify(id),  onSuccess: invalidate, onError: (e) => setError(e?.response?.data?.error?.message) });
-  const approveMutation = useMutation({ mutationFn: () => purchasesApi.approve(id, { operationId: newOperationId() }), onSuccess: invalidate, onError: (e) => setError(e?.response?.data?.error?.message) });
-  const rejectMutation  = useMutation({ mutationFn: () => purchasesApi.reject(id, { reason: rejectReason }), onSuccess: () => { invalidate(); setShowReject(false); }, onError: (e) => setError(e?.response?.data?.error?.message) });
+  const submitMutation  = useMutation({ mutationFn: () => purchasesApi.submit(id),  onSuccess: invalidate, onError: (e) => setError(parseApiError(e)) });
+  const verifyMutation  = useMutation({ mutationFn: () => purchasesApi.verify(id),  onSuccess: invalidate, onError: (e) => setError(parseApiError(e)) });
+  const approveMutation = useMutation({ mutationFn: () => purchasesApi.approve(id, { operationId: newOperationId() }), onSuccess: invalidate, onError: (e) => setError(parseApiError(e)) });
+  const rejectMutation  = useMutation({ mutationFn: () => purchasesApi.reject(id, { reason: rejectReason }), onSuccess: () => { invalidate(); setShowReject(false); }, onError: (e) => setError(parseApiError(e)) });
 
   if (isLoading) return <Modal open onClose={onClose} title="Purchase"><PageSpinner /></Modal>;
 
@@ -40,7 +44,12 @@ export function PurchaseDetailModal({ id, onClose }) {
   if (!p) return null;
 
   const totalKg  = p.items?.reduce((a, i) => a + parseFloat(i.quantityKg || 0), 0) || 0;
-  const totalAmt = p.items?.reduce((a, i) => a + parseFloat(i.totalPrice || 0), 0) || 0;
+  const totalAmt = p.items?.reduce((a, i) => a + parseFloat(i.totalPrice  || 0), 0) || 0;
+  const totalPaid = p.payments
+    ?.filter(py => py.status === 'COMPLETED')
+    .reduce((a, py) => a + parseFloat(py.amount || 0), 0) || 0;
+  const remaining = totalAmt - totalPaid;
+  const isPaid    = remaining <= 0.005;
 
   return (
     <Modal
@@ -71,6 +80,12 @@ export function PurchaseDetailModal({ id, onClose }) {
                 </Button>
               </>
             )}
+            {/* Pay button — only for approved purchases with outstanding balance */}
+            {p.status === 'APPROVED' && isBossOrAdmin && !isPaid && (
+              <Button size="sm" variant="primary" onClick={() => setShowPayment(true)}>
+                Record Payment
+              </Button>
+            )}
           </div>
           <Button variant="secondary" size="sm" onClick={onClose}>{t('common.close')}</Button>
         </div>
@@ -87,7 +102,6 @@ export function PurchaseDetailModal({ id, onClose }) {
         <div><span className="text-slate-500">Credit Terms:</span> <span className="font-medium">{p.creditTerms}</span></div>
         {p.creditDueDate && <div><span className="text-slate-500">Due Date:</span> <span className="font-medium">{formatDate(p.creditDueDate)}</span></div>}
       </div>
-
       {/* Items table */}
       <div className="rounded-xl border border-slate-200 overflow-hidden mb-5">
         <table className="w-full text-sm">
@@ -153,6 +167,42 @@ export function PurchaseDetailModal({ id, onClose }) {
             <Button size="sm" variant="secondary" onClick={() => setShowReject(false)}>Cancel</Button>
           </div>
         </div>
+      )}
+
+      {/* Payment summary — only for approved purchases */}
+      {p.status === 'APPROVED' && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Total amount</span>
+            <span className="font-medium tabular-nums">{formatMoney(totalAmt)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Total paid</span>
+            <span className="font-medium text-success-600 tabular-nums">{formatMoney(totalPaid)}</span>
+          </div>
+          <div className="flex justify-between border-t border-slate-200 pt-1.5">
+            <span className="font-medium text-slate-700">Outstanding balance</span>
+            <span className={`font-bold tabular-nums ${isPaid ? 'text-success-600' : 'text-danger-600'}`}>
+              {isPaid ? '✓ Fully paid' : formatMoney(remaining)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment modal */}
+      {showPayment && (
+        <RecordPaymentModal
+          type="purchase"
+          transactionId={p.id}
+          transactionNumber={p.purchaseNumber}
+          remainingAmount={remaining}
+          onClose={() => setShowPayment(false)}
+          onSuccess={() => {
+            setShowPayment(false);
+            invalidate();
+            queryClient.invalidateQueries({ queryKey: ['agent-stats', p.agentId] });
+          }}
+        />
       )}
     </Modal>
   );
